@@ -1,14 +1,18 @@
 package entity
 
+import "time"
+
 // 面向前端
-type User struct {
-	Id         int64  `gorm:"column:id;primary_key;not null;comment:唯一id"`
-	Username   string `gorm:"column:username;type:varchar(64);index:idx_tbl_users_username;not null;comment:用户名'"`
-	Password   string `gorm:"column:password;type:varchar(64);not null;comment:用户名'" `
-	CreateTime int64  `gorm:"column:create_time;type:bigint;index:idx_tbl_users_create_time;not null "`
-	UpdateTime int64  `gorm:"column:update_time;type:bigint;index:idx_tbl_users_update_time;not null "`
+type Users struct {
+	ID        int64     `gorm:"primary_key;column:id;table:users"  json:"id"`
+	Username  string    `gorm:"type:varchar(50);not null;unique;column:username" json:"username"`
+	Password  string    `gorm:"type:varchar(100);not null;column:password" json:"password"`
+	Email     string    `gorm:"type:varchar(100);unique;column:email" json:"email"`
+	Phone     string    `gorm:"type:varchar(20);column:phone" json:"phone"`
+	CreatedAt time.Time `gorm:"default:current_timestamp;column:created_at" json:"created_at"` // 创建时间
+	UpdatedAt time.Time `gorm:"default:current_timestamp;column:updated_at" json:"updated_at"` // 更新时间`
 }
 
-func (User) TableName() string {
-	return "tbl_users"
+func (u *Users) TableName() string {
+	return "users"
 }
