@@ -4,23 +4,34 @@ import (
 	"Manager/domain/entity"
 	"Manager/domain/repository"
 	"context"
+	"errors"
+	"fmt"
 
-	"github.com/jinzhu/gorm"
+	"gorm.io/gorm"
 )
 
-type PsgAdminRepository struct {
+type PsgAdminRepo struct {
 	db *gorm.DB
 }
 
-func NewPsgAdminRepository(db *gorm.DB) repository.AdminRepository {
-	return &PsgAdminRepository{db: db}
+func NewPsgAdminRepo(db *gorm.DB) repository.AdminRepo {
+	return &PsgAdminRepo{db: db}
 }
 
-func (p PsgAdminRepository) FindByAdminPassword(ctx context.Context, username, password string) (*entity.Admins, error) {
+func (p *PsgAdminRepo) FindByAdminName(ctx context.Context, username string) (*entity.Admins, error) {
 	admin := &entity.Admins{}
-	result := p.db.Where("username = ? AND password = ?", username, password).First(admin)
-	if result.Error != nil {
-		return nil, result.Error
+	result := p.db.WithContext(ctx).Where("username = ? ", username).First(admin)
+	err := result.Error
+	if err != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("管理员不存在[username:%s]", username)
+		}
+		return nil, fmt.Errorf("查询管理员失败: %w", username, result.Error)
 	}
 	return admin, nil
+}
+
+func (p *PsgAdminRepo) GetUsers() ([]entity.Users, error) {
+
+	panic("implement me")
 }
