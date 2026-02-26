@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"gorm.io/gorm"
 )
@@ -29,21 +30,31 @@ func (p *PsgUserRepo) wrapErr(err error) error {
 	}
 }
 func (p *PsgUserRepo) IsExist(ctx context.Context, username string) (bool, error) {
-	userPO := &entity.Users{}
-	result := p.db.Where("username = ?", username).First(userPO)
-	if result.Error != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) { //errors.Is专门用于判断一个错误是否为指定的目标错误
-			return false, nil
-		}
-		return false, result.Error
+	if username == "" {
+		return false, fmt.Errorf("用户名不能为空")
 	}
-	return true, nil
+	//无需查询整条用户记录，只需统计数量）
+	var count int64
+	result := p.db.WithContext(ctx).
+		Model(&entity.Users{}).
+		Where("username = ?", username).
+		Count(&count)
+	if result.Error != nil {
+
+		return false, fmt.Errorf("查询用户名是否存在异常：%w", result.Error)
+	}
+	// 数量>0 说明存在，否则不存在
+	return count > 0, nil
 }
 
-func (p *PsgUserRepo) FindById(ctx context.Context, id int) (*entity.Users, error) {
+func (p *PsgUserRepo) FindById(ctx context.Context, id string) (*entity.Users, error) {
+	idInt, err := strconv.Atoi(id)
+	if err != nil {
+		return nil, fmt.Errorf("用户ID格式错误：%w", err)
+	}
 	user := &entity.Users{}
 	// 注意：GORM的First如果没找到记录，会返回gorm.ErrRecordNotFound错误
-	result := p.db.WithContext(ctx).Where("id = ?", id).First(user)
+	result := p.db.WithContext(ctx).Where("id = ?", idInt).First(user)
 	if result.Error != nil {
 		// 修正：%w 只绑定错误，id 用 %d 展示（便于日志排查）
 		return nil, fmt.Errorf("查询id为%d的用户失败: %w", id, result.Error)
@@ -86,37 +97,40 @@ func (p *PsgUserRepo) GetByName(ctx context.Context, username string) (*entity.U
 
 // ========== 管理员==========
 // 管理员修改用户密码
-func (p *PsgUserRepo) AdminUpdateUName(ctx context.Context, username string, newUsername string) error {
-	oldExist, err := p.IsExist(ctx, username) //调用isexist
+func (p *PsgUserRepo) AdminUpdateUName(ctx context.Context, id string, newUsername string) error {
+	_, err := p.FindById(ctx, id)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return gorm.ErrRecordNotFound
+		}
 		return fmt.Errorf("查询目标用户是否存在异常：%w", err)
 	}
-	if !oldExist {
-		return gorm.ErrRecordNotFound
-	}
-
-	// 2. 调用 IsExist 判断新用户名是否已存在
+	// 校验新用户名是否已存在
 	newExist, err := p.IsExist(ctx, newUsername)
 	if err != nil {
-		return err // 数据库异常直接返回
+		return fmt.Errorf("查询新用户名是否存在异常：%w", err)
 	}
 	if newExist {
 		return gorm.ErrDuplicatedKey // 新用户名重复
 	}
 
-	result := p.db.Model(&entity.Users{}).
-		Where("username = ?", username).
+	result := p.db.WithContext(ctx).Model(&entity.Users{}).
+		Where("id = ?", id).
 		Update("username", newUsername)
+
 	if result.Error != nil {
 		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
 	}
 	return nil
 }
 
 // 管理员修改密码
-func (p *PsgUserRepo) AdminUpdateUPsd(ctx context.Context, username string, newPassword string) error {
+func (p *PsgUserRepo) AdminUpdateUPsd(ctx context.Context, id string, newPassword string) error {
 	result := p.db.WithContext(ctx).Model(&entity.Users{}).
-		Where("username = ?", username).
+		Where("id = ?", id).
 		Update("password", newPassword)
 	if result.Error != nil {
 		return result.Error
@@ -148,17 +162,28 @@ func (p *PsgUserRepo) GetUsersList(ctx context.Context, page, pageSize int, keyw
 	return list, total, nil
 }
 
-func (p *PsgUserRepo) DeleteUser(ctx context.Context, id int) error {
-	if id <= 0 {
-		return errors.New("用户ID不合法，必须为正整数")
+func (p *PsgUserRepo) DeleteUser(ctx context.Context, id string) error {
+
+	if id == "" {
+		return errors.New("用户ID不能为空")
 	}
-	_, err := p.FindById(ctx, id)
+
+	_, err := strconv.Atoi(id)
 	if err != nil {
-		return err
+		return fmt.Errorf("用户ID格式错误，必须为数字字符串：%w", err)
 	}
-	result := p.db.Where("id = ?", id).Delete(&entity.Users{})
+
+	_, err = p.FindById(ctx, id)
+	if err != nil {
+		return fmt.Errorf("待删除的用户不存在：%w", err)
+	}
+
+	result := p.db.WithContext(ctx).Where("id = ?", id).Delete(&entity.Users{})
 	if result.Error != nil {
 		return fmt.Errorf("删除用户失败: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
 	}
 	return nil
 }

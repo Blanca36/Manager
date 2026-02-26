@@ -21,13 +21,12 @@ func main() {
 
 	// ========== 普通用户==========
 	ur := infrastructure.NewPsgUserRepo(database.GetDB())
-	ud := service.NewUserSrv(ur)
-	up := service.NewUserAppSvcImpl(ud)
+	up := service.NewUserService(ur)
 	uh := handler.NewUserHandler(up)
 
 	// ========== 管理员==========
 	ar := infrastructure.NewPsgAdminRepo(database.GetDB())
-	ap := service.NewAdminAppSrvImpl(ar, ud) //注入用户相关依赖
+	ap := service.NewAdminServiceImpl(ar, up) //注入用户相关依赖
 	ah := handler.NewAdminHandler(ap)
 
 	router := router.SetRouter(uh, ah)

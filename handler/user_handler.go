@@ -4,9 +4,6 @@ import (
 	"Manager/common"
 	"Manager/domain/service"
 	"Manager/tool"
-	"errors"
-	"fmt"
-	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -14,10 +11,10 @@ import (
 )
 
 type UserHandler struct {
-	userService service.UserAppSrv // 应用层服务接口（
+	userService service.UserService // 应用层服务接口（
 }
 
-func NewUserHandler(userService service.UserAppSrv) *UserHandler {
+func NewUserHandler(userService service.UserService) *UserHandler {
 	return &UserHandler{
 		userService: userService,
 	}
@@ -110,44 +107,4 @@ func (h *UserHandler) UpdatePsd(c *gin.Context) {
 	)
 	// 无数据返回，传入nil即可
 	c.JSON(http.StatusOK, common.Success(nil))
-}
-
-func ErrHandler(c *gin.Context, err error) {
-	var myErr MyError
-	if errors.As(err, &myErr) {
-		slog.Info("err", slog.Any("err", myErr.Case()), slog.String("requestId", c.GetString("X-Request-ID")))
-		c.JSON(myErr.Code, myErr.Message)
-		return
-	} else {
-		c.JSON(http.StatusInternalServerError, "ccdcd")
-		return
-	}
-}
-
-func MyErrorWith(code int, msg string) *MyError {
-	return &MyError{
-		Code:    code,
-		Message: msg,
-	}
-}
-
-type MyError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-	err     error  `json:"-"`
-}
-
-func (e *MyError) Error() string {
-	return fmt.Sprintf("code: %d, message: %s", e.Code, e.Message)
-}
-
-func (e *MyError) WithCase(err error) *MyError {
-	var ne *MyError
-	safe.Copy(&e, e)
-	ne.err = err
-	return ne
-}
-
-func (e *MyError) Case() error {
-	return e.err
 }

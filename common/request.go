@@ -15,6 +15,10 @@ type UpdatePwdRequest struct {
 	NewPassword string `json:"new_password" binding:"required"` // 新密码
 }
 
+type ChangePasswordRequest struct {
+	NewPassword string `json:"new_password" binding:"required,min=6,max=20"` // 新密码，增加长度校验更健壮
+}
+
 // 不返回密码,返回给前端
 type UserListResponse struct {
 	ID        uint   `json:"id"`

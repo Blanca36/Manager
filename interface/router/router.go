@@ -28,7 +28,8 @@ func SetRouter(userHandler *handler.UserHandler, adminHandler *handler.AdminHand
 	admins := r.Group("admins").Use(middleware.AdminAuth())
 	{
 		admins.PUT("/:id/password/update", adminHandler.AdminUpdateUPsd) ///password/update，名词在前动词在后
-		admins.PUT("username/update", adminHandler.AdminUpdateUName)
+		//admins.PUT("/password/update", adminHandler.AdminUpdateUPsd)
+		admins.PUT("/:id/username/update", adminHandler.AdminUpdateUName)
 		admins.PUT("user/delete", adminHandler.DeleteUser)
 		admins.GET("user_list", adminHandler.GetUsersList)
 	}
