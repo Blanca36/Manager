@@ -8,31 +8,47 @@ import (
 )
 
 // 路由
-func SetRouter(userHandler *handler.UserHandler, adminHandler *handler.AdminHandler) *gin.Engine {
+func SetUserRouter(userHandler *handler.UserHandler) *gin.Engine {
 	r := gin.Default()
 	//设置全局中间件
 	r.Use(middleware.Cors(), middleware.RequestID(), middleware.Counter())
-	//路由组
-	userMe := r.Group("user/me")
+	//路由组,PS:登录是「认证动作」
+	authGroup := r.Group("auth")
 	{
-		userMe.POST("login", userHandler.UserLogin) // 登录接口
-		userMe.PUT("password/update", userHandler.UpdatePsd)
+		authGroup.POST("users/login", userHandler.UserLogin) // 登录接口
 	}
-	//管理员登录
-	adminMe := r.Group("admin/me")
+	userGroup := r.Group("users/me")
 	{
-		adminMe.POST("login", adminHandler.AdminLogin)
+		userGroup.PUT("password", userHandler.UpdatePsd)
+	}
+	return r
+}
+
+func SetAdminRouter(adminHandler *handler.AdminHandler) *gin.Engine {
+	r := gin.Default()
+	r.Use(middleware.Cors(), middleware.RequestID(), middleware.Counter())
+	//管理员登录
+	authGroup := r.Group("auth")
+	{
+		authGroup.POST("admins/login", adminHandler.AdminLogin)
 	}
 
 	//管理员验证
-	admins := r.Group("admins").Use(middleware.AdminAuth())
-	{
-		admins.PUT("/:id/password/update", adminHandler.AdminUpdateUPsd) ///password/update，名词在前动词在后
-		//admins.PUT("/password/update", adminHandler.AdminUpdateUPsd)
-		admins.PUT("/:id/username/update", adminHandler.AdminUpdateUName)
-		admins.PUT("user/delete", adminHandler.DeleteUser)
-		admins.GET("user_list", adminHandler.GetUsersList)
-	}
+	//adminsGroup := r.Group("admins").Use(middleware.AdminAuth())
+	//{
+	//
+	//}
+	//管理员管理普通用户
 
+	adminUserGroup := r.Group("admin/users").Use(middleware.AdminAuth())
+	{
+		adminUserGroup.DELETE("/:id", adminHandler.DeleteUser)
+		adminUserGroup.GET("", adminHandler.GetUsersList)
+		//users.POST("", xxxx)
+		adminUserGroup.PUT("/:id/password", adminHandler.UpdateUserPassword) ///password/update，名词在前动词在后
+		//admins.PUT("/password/update", adminHandler.UpdateUserPassword)
+		adminUserGroup.PUT("/:id/username", adminHandler.UpdateUsername)
+
+	}
 	return r
 }

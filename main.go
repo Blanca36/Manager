@@ -7,6 +7,7 @@ import (
 	"Manager/infrastructure"
 	"Manager/interface/router"
 	"Manager/tool"
+	"log"
 
 	"go.uber.org/zap"
 )
@@ -20,19 +21,29 @@ func main() {
 	database := config.NewDatabase() //请求一个数据库实例
 
 	// ========== 普通用户==========
-	ur := infrastructure.NewPsgUserRepo(database.GetDB())
-	up := service.NewUserService(ur)
-	uh := handler.NewUserHandler(up)
+	userRepo := infrastructure.NewPsgUserRepo(database.GetDB())
+	userService := service.NewUserService(userRepo)
+	userHandle := handler.NewUserHandler(userService)
 
 	// ========== 管理员==========
-	ar := infrastructure.NewPsgAdminRepo(database.GetDB())
-	ap := service.NewAdminServiceImpl(ar, up) //注入用户相关依赖
-	ah := handler.NewAdminHandler(ap)
+	adminRepo := infrastructure.NewPsgAdminRepo(database.GetDB(), userRepo)
+	adminService := service.NewAdminServiceImpl(adminRepo) //注入用户相关依赖
+	adminHandler := handler.NewAdminHandler(adminService)
 
-	router := router.SetRouter(uh, ah)
-	tool.Info("路由初始化完成，启动HTTP服务，端口：8889")
-	if err := router.Run(":8889"); err != nil {
-		tool.Error("服务启动失败", zap.Error(err))
-		panic("服务启动失败：" + err.Error())
+	userRouter := router.SetUserRouter(userHandle)
+
+	go func() {
+		tool.Info("用户接口服务初始化完成，启动HTTP服务，端口：8886")
+		if err := userRouter.Run(":8886"); err != nil {
+			tool.Error("用户服务启动失败", zap.Error(err))
+			log.Panicf("用户服务启动失败：%s", err.Error())
+		}
+	}()
+
+	adminRouter := router.SetAdminRouter(adminHandler)
+	tool.Info("管理员接口服务初始化完成，启动HTTP服务，端口：8888")
+	if err := adminRouter.Run(":8888"); err != nil {
+		tool.Error("管理员服务启动失败", zap.Error(err))
+		panic("管理员服务启动失败：" + err.Error())
 	}
 }

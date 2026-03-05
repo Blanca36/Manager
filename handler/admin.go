@@ -128,7 +128,7 @@ func (h *AdminHandler) GetUsersList(c *gin.Context) {
 }
 
 // ========================管理员修改用户名====================================
-func (h *AdminHandler) AdminUpdateUName(c *gin.Context) {
+func (h *AdminHandler) UpdateUsername(c *gin.Context) {
 
 	id := c.Param("id")
 	if id == "" {
@@ -143,7 +143,8 @@ func (h *AdminHandler) AdminUpdateUName(c *gin.Context) {
 		return
 	}
 	type UpdateUsernameRequest struct {
-		NewUsername string `json:"new_username" binding:"required"` // 新用户名
+		ID          string `json:"-" query:"id"`
+		NewUsername string `json:"new_username"` // 新用户名
 	}
 
 	var req UpdateUsernameRequest
@@ -167,7 +168,7 @@ func (h *AdminHandler) AdminUpdateUName(c *gin.Context) {
 		NewUsername: req.NewUsername, // 前端传递的新密码
 	}
 	// 4. 调用应用层方法
-	err = h.adminSrv.AdminUpdateUName(c.Request.Context(), cmd)
+	err = h.adminSrv.UpdateUsername(c.Request.Context(), cmd)
 	if err != nil {
 		tool.Error("管理员修改用户用户名-业务处理失败",
 			zap.String("req_id", reqID),
@@ -187,7 +188,7 @@ func (h *AdminHandler) AdminUpdateUName(c *gin.Context) {
 }
 
 // ========================管理员修改用户密码====================================
-func (h *AdminHandler) AdminUpdateUPsd(c *gin.Context) {
+func (h *AdminHandler) UpdateUserPassword(c *gin.Context) {
 	id := c.Param("id") //从url中获取id
 	if id == "" {
 		tool.Error("管理员修改用户密码-ID参数为空")
@@ -204,15 +205,15 @@ func (h *AdminHandler) AdminUpdateUPsd(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		tool.Error("管理员修改用户密码-参数绑定失败", zap.Error(err))
 		c.JSON(http.StatusBadRequest, common.ParamError("请求参数错误："+err.Error()))
-		return
+		return // 关键：添加return，阻止后续代码执行,缺少了return导致用id=0调用后续代码
 	}
-	adminID := c.GetUint("admin_id")               // 从上下文获取登录的管理员ID
-	adminUsername := c.GetString("admin_username") // 从上下文获取管理员用户名
-	tool.Info("管理员发起用户密码请求",
-		zap.Uint("operator_admin_id", adminID),
-		zap.String("operator_username", adminUsername),
-		zap.String("target_user_id", id),
-	)
+	//adminID := c.GetUint("admin_id")               // 从上下文获取登录的管理员ID
+	//adminUsername := c.GetString("admin_username") // 从上下文获取管理员用户名
+	//tool.Info("管理员发起用户密码请求",
+	//	zap.Uint("operator_admin_id", adminID),
+	//	zap.String("operator_username", adminUsername),
+	//	zap.String("target_user_id", id),
+	//)
 	//  把Handler层的 DTO + URL 中的 ID 映射到 Service 层的 Cmd 结构体
 	cmd := &service.ChangePasswordCmd{
 		UserID:      id,              // URL 中的用户ID
@@ -224,7 +225,7 @@ func (h *AdminHandler) AdminUpdateUPsd(c *gin.Context) {
 		zap.String("target_user_id", id),
 		zap.String("new_password", req.NewPassword),
 	)
-	err = h.adminSrv.AdminUpdateUPsd(c.Request.Context(), cmd)
+	err = h.adminSrv.UpdateUserPassword(c.Request.Context(), cmd)
 	if err != nil {
 		tool.Error("管理员修改用户密码-业务处理失败",
 			zap.String("req_id", reqID),
@@ -244,45 +245,44 @@ func (h *AdminHandler) AdminUpdateUPsd(c *gin.Context) {
 }
 
 func (h *AdminHandler) DeleteUser(c *gin.Context) {
-	type DeleteUserRequest struct {
-		UserID string `json:"user_id"` //笔误用了小写userID，导致id绑定失败
-	}
-	var req DeleteUserRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		tool.Error("管理员删除用户-参数绑定失败",
-			zap.Error(err),
+	reqUserID := c.Param("id")
+	if reqUserID == "" {
+		tool.Error("管理员删除用户-用户ID不合法",
+			zap.String("delete_user_id", reqUserID),
 			zap.String("req_id", c.GetString("X-Request-ID")))
-		c.JSON(http.StatusBadRequest, common.ParamError("请求参数错误："+err.Error()))
+		c.JSON(http.StatusBadRequest, common.ParamError("用户ID不能为空"))
 		return // 关键：添加return，阻止后续代码执行,缺少了return导致用id=0调用后续代码
 	}
 	// 2. 记录日志（操作人+要删除的用户ID）
-	adminID := c.GetUint("admin_id")               // 从上下文获取登录的管理员ID
-	adminUsername := c.GetString("admin_username") // 从上下文获取管理员用户名
-	tool.Info("管理员发起删除用户请求",
-		zap.Uint("operator_admin_id", adminID),
-		zap.String("operator_username", adminUsername),
-		zap.String("delete_user_id", req.UserID),
-	)
+	//adminID := c.GetUint("admin_id")               // 从上下文获取登录的管理员ID
+	//adminUsername := c.GetString("admin_username") // 从上下文获取管理员用户名
+	//tool.Info("管理员发起删除用户请求",
+	//	zap.Uint("operator_admin_id", adminID),
+	//	zap.String("operator_username", adminUsername),
+	//	zap.String("delete_user_id", req.UserID),
+	//)
 
-	if req.UserID == "" {
-		tool.Error("管理员删除用户-用户ID不合法",
-			zap.String("delete_user_id", req.UserID),
+	_, err := strconv.Atoi(reqUserID)
+	if err != nil {
+		tool.Error("管理员删除用户-用户ID格式错误",
+			zap.String("delete_user_id", reqUserID),
+			zap.Error(err),
 			zap.String("req_id", c.GetString("X-Request-ID")))
 		c.JSON(http.StatusBadRequest, common.ParamError("用户ID必须为正整数"))
 		return
 	}
 
-	err := h.adminSrv.DeleteUser(c.Request.Context(), req.UserID)
+	err = h.adminSrv.DeleteUser(c.Request.Context(), reqUserID)
 	if err != nil {
 		tool.Error("管理员删除失败",
-			zap.String("delete_user_id", req.UserID),
+			zap.String("delete_user_id", reqUserID),
 			zap.Error(err),
 			zap.String("req_id", c.GetString("X-Request-ID")))
 		c.JSON(http.StatusOK, common.ServerError(err.Error()))
 		return
 	}
 	tool.Info("管理员删除用户成功",
-		zap.String("delete_user_id", req.UserID),
+		zap.String("delete_user_id", reqUserID),
 		zap.String("req_id", c.GetString("X-Request-ID")),
 	)
 	c.JSON(http.StatusOK, common.Success(nil))

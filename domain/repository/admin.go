@@ -6,8 +6,14 @@ import (
 )
 
 type AdminRepo interface {
-	GetUsers() ([]entity.Users, error) //获取user列表
+	//GetUsers() ([]entity.Users, error) //获取user列表
 	FindByAdminName(ctx context.Context, username string) (*entity.Admins, error)
+
+	//操作用户
+	GetUsersList(ctx context.Context, page, pageSize int, keyword string) (list []entity.Users, total int64, err error)
+	DeleteUser(ctx context.Context, id string) error
+	UpdateUsername(ctx context.Context, id string, newUsername string) error
+	UpdateUserPassword(ctx context.Context, id string, newPassword string) error
 }
 
 //type Manager interface {

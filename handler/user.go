@@ -85,7 +85,7 @@ func (h *UserHandler) UpdatePsd(c *gin.Context) {
 		zap.String("username", req.Username),
 	)
 
-	err := h.userService.UpdatePsd(
+	err := h.userService.UpdatePassword(
 		c.Request.Context(),
 		req.Username,
 		req.OldPassword,

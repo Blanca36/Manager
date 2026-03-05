@@ -25,31 +25,56 @@ type ChangeUsernameCmd struct {
 
 type AdminService interface {
 	AdminLogin(ctx context.Context, username, password string) (*entity.Admins, error)
-	AdminUpdateUName(ctx context.Context, cmd *ChangeUsernameCmd) error
-	AdminUpdateUPsd(ctx context.Context, cmd *ChangePasswordCmd) error
+	UpdateUsername(ctx context.Context, cmd *ChangeUsernameCmd) error
+	UpdateUserPassword(ctx context.Context, cmd *ChangePasswordCmd) error
 	GetUsersList(ctx context.Context, req common.PageRequest) (resp common.PageResponse, err error)
 	DeleteUser(ctx context.Context, id string) error
 }
 
 // AdminServiceImpl 应用层实现结构体，注入领域层服务依赖
 type adminSerivce struct {
-	adminRepo   repository.AdminRepo
-	userService UserService // 用户领域层服务（保留原有依赖）
+	adminRepo repository.AdminRepo
+	//userService UserService // 用户领域层服务（保留原有依赖）
 }
 
 // NewAdminServiceImpl 应用层构造函数
-func NewAdminServiceImpl(repo repository.AdminRepo, userService UserService) AdminService {
+func NewAdminServiceImpl(repo repository.AdminRepo) AdminService {
 	return &adminSerivce{
-		adminRepo:   repo,
-		userService: userService,
+		adminRepo: repo,
+		//userService: userService,
 	}
 }
 
 // 前端通过Handle请求传递common.PageRequest进来，返回 common.PageResponse
 func (s *adminSerivce) GetUsersList(ctx context.Context, req common.PageRequest) (resp common.PageResponse, err error) {
-	resp, err = s.userService.GetUsersList(ctx, req.Page, req.PageSize, req.Keyword)
+	list, total, err := s.adminRepo.GetUsersList(ctx, req.Page, req.PageSize, req.Keyword)
 	if err != nil {
-		return resp, err
+		return resp, fmt.Errorf("查询用户列表异常：%w", err)
+	}
+
+	var userList []common.UserListResponse
+	for _, user := range list {
+		userList = append(userList, common.UserListResponse{
+			ID:        uint(user.ID),
+			Username:  user.Username,
+			CreatedAt: user.CreatedAt.Format("2006-01-02 15:04:05"),
+			Email:     user.Email,
+			Phone:     user.Phone,
+			UpdatedAt: user.UpdatedAt.Format("2006-01-02 15:04:05"),
+		})
+	}
+
+	totalPages := int(total) / req.PageSize
+	if int(total)%req.PageSize != 0 {
+		totalPages += 1
+	}
+
+	resp = common.PageResponse{
+		List:       userList,
+		Total:      total,
+		Page:       req.Page,
+		PageSize:   req.PageSize,
+		TotalPages: totalPages,
 	}
 
 	return resp, nil
@@ -67,42 +92,54 @@ func (s *adminSerivce) AdminLogin(ctx context.Context, username, password string
 		}
 		return nil, fmt.Errorf("登录失败：用户信息查询异常，%w", err)
 	}
-	if dbAdmin.Password != dbAdmin.Password {
+	if dbAdmin.Password != password {
 		return nil, fmt.Errorf("登录失败：密码错误")
 	}
 	return dbAdmin, nil
 }
 
 // AUpdateUserName 应用层接口：管理员修改普通用户名
-func (s *adminSerivce) AdminUpdateUName(ctx context.Context, cmd *ChangeUsernameCmd) error {
+func (s *adminSerivce) UpdateUsername(ctx context.Context, cmd *ChangeUsernameCmd) error {
 	if cmd.UserID == "" || cmd.NewUsername == "" {
 		return fmt.Errorf("用户ID、新用户名不能为空") // 校验ID而非原用户名
 	}
 	// 调用用户领域层方法
-	err := s.userService.AdminUpdateUName(ctx, cmd)
+	err := s.adminRepo.UpdateUsername(ctx, cmd.UserID, cmd.NewUsername)
 	if err != nil {
-		return err
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("待修改的用户不存在")
+		}
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return fmt.Errorf("新用户名已存在，修改失败")
+		}
+		return fmt.Errorf("管理员修改用户用户名异常：%w", err)
 	}
 	return nil
 }
 
-// AUpdateUserPsw 应用层接口：管理员修改普通用户密码
-func (s *adminSerivce) AdminUpdateUPsd(ctx context.Context, cmd *ChangePasswordCmd) error {
+// AUpdateUserPsw 应用层接口：管理员修改普通用户密码 UpdateUsername
+func (s *adminSerivce) UpdateUserPassword(ctx context.Context, cmd *ChangePasswordCmd) error {
 	if cmd.UserID == "" || cmd.NewPassword == "" {
 		return fmt.Errorf("待修改的用户ID、新密码不能为空")
 	}
 	// 调用用户领域层方法
-	err := s.userService.AdminUpdateUPsd(ctx, cmd) //调用cmd changepossword
+	err := s.adminRepo.UpdateUserPassword(ctx, cmd.UserID, cmd.NewPassword) //调用cmd changepossword
 	if err != nil {
-		return err
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("待修改的用户不存在")
+		}
+		return fmt.Errorf("管理员修改用户密码异常：%w", err)
 	}
 	return nil
 }
 
 func (s *adminSerivce) DeleteUser(ctx context.Context, id string) error {
-	err := s.userService.DeleteUser(ctx, id)
+	err := s.adminRepo.DeleteUser(ctx, id)
 	if err != nil {
-		return err
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("删除的用户不存在")
+		}
+		return fmt.Errorf("管理员删除用户异常：%w", err)
 	}
 	return nil
 }
