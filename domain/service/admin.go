@@ -113,6 +113,7 @@ func (s *adminSerivce) UpdateUsername(ctx context.Context, cmd *ChangeUsernameCm
 			return fmt.Errorf("新用户名已存在，修改失败")
 		}
 		return fmt.Errorf("管理员修改用户用户名异常：%w", err)
+
 	}
 	return nil
 }
